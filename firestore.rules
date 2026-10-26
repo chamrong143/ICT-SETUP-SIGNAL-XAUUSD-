@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function isAdmin()  { return signedIn() && request.auth.token.email == 'chamrong649@gmail.com'; }
+    function isAllowed() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/allowed/$(request.auth.token.email))
+        && get(/databases/$(database)/documents/allowed/$(request.auth.token.email)).data.active != false;
+    }
+
+    // allowlist: the admin manages it; a user may read only their own entry
+    match /allowed/{email} {
+      allow read: if isAdmin() || (signedIn() && request.auth.token.email == email);
+      allow write: if isAdmin();
+    }
+
+    // Twelve Data API key: readable by allowed users, writable by the admin only
+    match /config/{docId} {
+      allow read: if isAdmin() || isAllowed();
+      allow write: if isAdmin();
+    }
+  }
+}
